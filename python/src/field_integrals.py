@@ -1,24 +1,22 @@
-# -*- coding: utf-8 -*-
 """
 Compute the overlap integrals Akk'(LJ, LJ0)
 """
 
-import numpy as np
-import matplotlib.pyplot as plt
-import matplotlib as mpl
+import itertools
 import re as regex
+import time
+
+import matplotlib as mpl
+import matplotlib.pyplot as plt
+import numpy as np
 import pandas as pd
+import prof_tools as pt
 import scipy.integrate
-import scipy.constants as sc
 import scipy.interpolate
 import scipy.optimize
-import prof_tools as pt
-from prof_tools import timeout
-import time
-import itertools
 
 
-class EMFieldIntegrals(object):
+class EMFieldIntegrals:
     """
     Class to handle the calculation of overlap integrals
     """
@@ -150,7 +148,7 @@ class EMFieldIntegrals(object):
             # Read off the minimum/maximum field values
             field_min, field_max, Nfields = group[0:3]
             field_data = group[3:]
-            Ndim = int(3 if self.isvector else 1)
+            Ndim = 3 if self.isvector else 1
             Nnodes = int(Nfields) // Ndim
             Nelem = field_data.size // (Ndim * Nnodes)
 
@@ -265,7 +263,7 @@ class EMFieldIntegrals(object):
         dstr            = self.dstr
 
         # Iterate over modes and LJ
-        self.tt.set_timer(f'load_fields()')
+        self.tt.set_timer('load_fields()')
         print(f'load_fields() modes: {modes}')
         for kidx, k in enumerate(modes):
             print(f'Loading Mode-{k} ...')
@@ -660,7 +658,7 @@ class EMFieldIntegrals(object):
         dstr            = self.dstr
         
         # Iterate over modes and LJ
-        self.tt.set_timer(f'strip_nans()')
+        self.tt.set_timer('strip_nans()')
         for kidx, k in enumerate(modes):
             for LJidx, LJ in enumerate(LJs):
                 # Construct the filenames on the fly
@@ -962,7 +960,7 @@ class EMFieldIntegrals(object):
         Akkmat = np.zeros([len(LJs), len(LJs), len(modes), len(modes)])
 
         # Iterate over modes and LJ, twice to build up off-diagonals
-        self.tt.set_timer(f'overlap_matrix_points()')
+        self.tt.set_timer('overlap_matrix_points()')
         for kidx, k in enumerate(modes):
             for kpidx, kp in enumerate(modes):
                 for LJidx, LJ in enumerate(LJs):
@@ -1010,10 +1008,10 @@ class EMFieldIntegrals(object):
             return Akkmat
         
 import pyEPR
-from pyEPR import ansys as HFSS
 from pyEPR.core_distributed_analysis import CalcObject
-        
-class JunctionParticipations(object):
+
+
+class JunctionParticipations:
     """
     Handles the junction participation calculations as the second
     term in the orthogonality condition defining the Akk', Bkk'
@@ -1275,7 +1273,7 @@ class JunctionParticipations(object):
         if return_matrix:
             return Ikkp
         
-class FieldIntegrals(object):
+class FieldIntegrals:
     """
     Class to handle the calculation of overlap integrals
     eprh : pyEPR.DistributedAnalysis, Nmodes :  int,
@@ -1351,9 +1349,9 @@ class FieldIntegrals(object):
         # Default state of fields stored in class
         # self.has_fields = False
         if self.normalize_fields:
-            print(f'Integrals will use normalized fields.')
+            print('Integrals will use normalized fields.')
         else:
-            print(f'Integrals will use non-normalized fields.')
+            print('Integrals will use non-normalized fields.')
         
         # Create internal instances of the two field integrals classes
         modes = np.linspace(1, Nmodes, Nmodes, dtype=int)
@@ -1410,19 +1408,19 @@ class FieldIntegrals(object):
         ## Compute the E-fields
         self.em_field_int.filename_format = self.efield_format
         self.em_field_int.load_fields()
-        print(f'Computing Akkp ...')
+        print('Computing Akkp ...')
         Akkp = self.em_field_int.overlap_matrix_points(fname=None, cidxs=None,
                                       drop_points=1, return_matrix=True) 
         
         ## Compute the H-fields
-        print(f'Computing Bkkp ...')
+        print('Computing Bkkp ...')
         self.em_field_int.filename_format = self.hfield_format
         self.em_field_int.load_fields()
         Bkkp = self.em_field_int.overlap_matrix_points(fname=None, cidxs=None,
                                       drop_points=1, return_matrix=True) 
         
         ## Repair the A, B matrices
-        print(f'Repairing Akkp, Bkkp ...')
+        print('Repairing Akkp, Bkkp ...')
         Akkp, Bkkp = self.repair_ab_matrices(Akkp, Bkkp)
         
         return Akkp, Bkkp
@@ -1457,7 +1455,7 @@ class FieldIntegrals(object):
         LJstrs = self.em_field_int.LJstrs
 
         # Iterate over modes and LJ, twice to build up off-diagonals
-        self.tt.set_timer(f'overlap_matrix_points()')
+        self.tt.set_timer('overlap_matrix_points()')
         
         # Construct the keys for the dictionaries
         key = f'k_{mode_idx}_LJ_{param_str}'
@@ -1481,12 +1479,12 @@ class FieldIntegrals(object):
         ## Compute the E-fields
         self.em_field_int.filename_format = self.efield_format
         self.em_field_int.load_fields()
-        print(f'Computing Akkp ...')
+        print('Computing Akkp ...')
         Akkp = self.em_field_int.overlap_matrix_points(fname=None, cidxs=None,
                                       drop_points=1, return_matrix=True) 
         
         ## Compute the H-fields
-        print(f'Computing Bkkp ...')
+        print('Computing Bkkp ...')
         self.em_field_int.filename_format = self.hfield_format
         self.em_field_int.load_fields()
         Bkkp = self.em_field_int.overlap_matrix_points(fname=None, cidxs=None,
@@ -1497,7 +1495,7 @@ class FieldIntegrals(object):
         pL, pC = self.junc_pratios.compute_pL_pC(return_matrix = True)
         
         ## Repair the A, B matrices -- matrices of field overlaps, only
-        print(f'Repairing Akkp, Bkkp ...')
+        print('Repairing Akkp, Bkkp ...')
         # Akkp, Bkkp = self.repair_ab_matrices(Akkp, Bkkp)
         
         # Iterate over inductances to compute the matrices at each node
@@ -1512,7 +1510,7 @@ class FieldIntegrals(object):
         II = np.eye(self.Nmodes)
 
         ## Solve the system of equations for AE, AH
-        print(f'Solving the AE, AH systems of equations ...')
+        print('Solving the AE, AH systems of equations ...')
         for LJidx, LJ in enumerate(LJs):
             for LJpidx, LJp in enumerate(LJs):
                 for k in range(self.Nmodes):
@@ -1542,7 +1540,7 @@ class FieldIntegrals(object):
         
         return AE, AH, XE, XH
 
-class ParametricCouplings(object):
+class ParametricCouplings:
     """
     Compute the parametric coupling rates with the field integrals as inputs
     """
@@ -1578,7 +1576,7 @@ class ParametricCouplings(object):
         if self.eprh is not None:
             eprh = self.eprh
         else:
-            raise KeyError(f'eprh is not set.')
+            raise KeyError('eprh is not set.')
 
         # Change the number of modes from the outside
         if M is not None:
