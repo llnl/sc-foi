@@ -10,10 +10,11 @@ import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import prof_tools as pt
 import scipy.integrate
 import scipy.interpolate
 import scipy.optimize
+
+import prof_tools as pt
 
 
 class EMFieldIntegrals:

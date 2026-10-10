@@ -211,3 +211,7 @@ __marimo__/
 # HFSS
 *.lock
 *.aedtresults/
+*.aedt.auto
+
+# Data
+data/
