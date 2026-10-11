@@ -4,7 +4,6 @@ Perform transformations between a black box circuit and another circuit model
 
 import matplotlib.pyplot as plt
 import numpy as np
-
 from file_io import get_delimiter_from_file
 
 
@@ -52,7 +51,7 @@ class BlackBoxAdmittanceModel:
         self.cj = cj if cj is not None else 0.0
         self.n_modes = n_modes
         self.plot_scales = (
-            plot_scales if plot_scales is not None else {"x": "log", "y": "linear"}
+            plot_scales if plot_scales is not None else {"x": "log", "y": "log"}
         )
         self._read_admittance_file(admittance_filename)
 
@@ -97,6 +96,44 @@ class BlackBoxAdmittanceModel:
         self.mode_impedances = np.asarray(zp)
         self.mode_frequencies = np.asarray(wp)
 
+    def plot_open_circuit_admittance(self):
+
+        _, ax = plt.subplots(1, 1, tight_layout=True)
+
+        ax.plot(
+            self.hfss_frequencies / self.fscale,
+            self.hfss_admittances.imag,
+            color="tab:blue",
+            marker=".",
+            ls="",
+        )
+        ax.axhline(y=0, color="k", alpha=0.5)
+        ax.set_xlabel("Sweep frequencies [GHz]")
+        ax.set_ylabel(r"${\rm Im}Y(\omega)$ [S]")
+        ax.set_title("Open circuit admittance")
+
+        ax.set_ylim(-1e-1, 1e-1)
+
+    def plot_mode_frequencies_vs_lj(
+        self,
+    ) -> None:
+
+        _, ax = plt.subplots(1, 1, tight_layout=True)
+
+        for p in range(self.n_modes):
+            ax.semilogx(
+                self.ljs,
+                self.mode_frequencies[:, p] / (2 * np.pi * self.fscale),
+                marker="o",
+                ls="",
+                label=rf"$\omega_{p} / 2\pi$",
+            )
+
+        ax.set_xlabel("Junction inductances [H]")
+        ax.set_ylabel(r"Mode frequencies [GHz]")
+        ax.legend()
+        ax.set_title("Mode frequencies from black box")
+
     def plot_mode_impedances_vs_lj(
         self,
     ) -> None:
@@ -104,18 +141,30 @@ class BlackBoxAdmittanceModel:
         _, ax = plt.subplots(1, 1, tight_layout=True)
 
         for p in range(self.n_modes):
-            ax.plot(self.ljs, self.mode_impedances[p], label=rf"$Z_{p}$")
+            ax.plot(
+                self.ljs,
+                self.mode_impedances[:, p],
+                marker="o",
+                ls="",
+                label=rf"$Z_{p}$",
+            )
 
         ax.set_xlabel("Junction inductances [H]")
         ax.set_ylabel(r"Mode impedance [$\Omega$]")
         ax.set_xscale(self.plot_scales["x"])
         ax.set_yscale(self.plot_scales["y"])
         ax.legend()
+        ax.set_title("Mode impedances from black box")
+
+    def show_plots(self) -> None:
+        self.plot_mode_impedances_vs_lj()
+        self.plot_mode_frequencies_vs_lj()
+        self.plot_open_circuit_admittance()
 
     def run(self) -> None:
 
         self.fit_admittances()
-        self.plot_mode_impedances_vs_lj()
+        self.show_plots()
 
 
 class InductivelyCoupledSQUIDCircuit:
