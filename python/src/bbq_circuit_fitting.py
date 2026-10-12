@@ -5,6 +5,7 @@ Perform transformations between a black box circuit and another circuit model
 import matplotlib.pyplot as plt
 import numpy as np
 from file_io import get_delimiter_from_file
+from lmfit.model import Model
 
 
 # Abstract base classes, filled in later
@@ -213,3 +214,44 @@ class InductivelyCoupledSQUIDCircuit:
         lr_inv[-1, -1] = 1 / lq + sum(1 / self.lrq)
 
         return lr_inv
+
+    def _get_a_matrix(self):
+        """Compute the system matrix A = U Omega^2 U^t."""
+
+
+class TwoCavityOneCouplerModel(Model):
+    def __init__(self, mode_index: int, *args, **kwargs):
+        super().__init__(self._two_cavity_one_coupler_impedances, *args, **kwargs)
+        self.mode_index = mode_index
+
+    def _two_cavity_one_coupler_impedances(
+        self,
+        lj: np.ndarray,
+        l1: float,
+        l2: float,
+        l1c: float,
+        l2c: float,
+        c1: float,
+        c2: float,
+        cj: float,
+    ) -> np.ndarray:
+
+        zp = []
+        for ljj in lj:
+            a_matrix = np.array(
+                [
+                    [(1 / l1 + 1 / l1c) / c1, 0, -1 / l1c / np.sqrt(cj * c1)],
+                    [0, (1 / l2 + 1 / l2c) / c2, -1 / l2c / np.sqrt(cj * c2)],
+                    [
+                        -1 / l1c / np.sqrt(cj * c1),
+                        -1 / l2c / np.sqrt(cj * 2),
+                        (1 / l1 + 1 / l2 + 1 / ljj) / cj,
+                    ],
+                ]
+            )
+
+            wsq, p_matrix = np.linalg.eigh(a_matrix)
+
+            zp.append(p_matrix[self.mode_index, 0] ** 2 / cj / wsq[self.mode_index])
+
+        return np.asarray(zp)
