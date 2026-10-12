@@ -6,6 +6,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 from file_io import get_delimiter_from_file
 from lmfit.model import Model
+from lmfit.models import update_param_vals
+from lmfit.parameter import Parameters
 
 
 # Abstract base classes, filled in later
@@ -220,13 +222,28 @@ class InductivelyCoupledSQUIDCircuit:
 
 
 class TwoCavityOneCouplerModel(Model):
-    def __init__(self, mode_index: int, *args, **kwargs):
+    # Inductance and capacitance bounds
+    l_min = 0.1
+    l_max = 2000
+    l_med = 1
+    c_min = 0.1
+    c_max = 2000
+    c_med = 1
+
+    default_unit_scale = 1e9
+
+    def __init__(
+        self, mode_index: int, *args, unit_scale: float | None = None, **kwargs
+    ):
         super().__init__(self._two_cavity_one_coupler_impedances, *args, **kwargs)
+        self.unit_scale = (
+            unit_scale if unit_scale is not None else self.default_unit_scale
+        )
         self.mode_index = mode_index
 
     def _two_cavity_one_coupler_impedances(
         self,
-        lj: np.ndarray,
+        x: np.ndarray,
         l1: float,
         l2: float,
         l1c: float,
@@ -237,21 +254,50 @@ class TwoCavityOneCouplerModel(Model):
     ) -> np.ndarray:
 
         zp = []
-        for ljj in lj:
+        for lj in x:
             a_matrix = np.array(
                 [
                     [(1 / l1 + 1 / l1c) / c1, 0, -1 / l1c / np.sqrt(cj * c1)],
                     [0, (1 / l2 + 1 / l2c) / c2, -1 / l2c / np.sqrt(cj * c2)],
                     [
                         -1 / l1c / np.sqrt(cj * c1),
-                        -1 / l2c / np.sqrt(cj * 2),
-                        (1 / l1 + 1 / l2 + 1 / ljj) / cj,
+                        -1 / l2c / np.sqrt(cj * c2),
+                        (1 / l1 + 1 / l2 + 1 / lj) / cj,
                     ],
                 ]
             )
 
+            if not np.allclose(a_matrix, a_matrix.T):
+                raise ValueError(f"a_matrix: {a_matrix} is not symmetric.")
+
             wsq, p_matrix = np.linalg.eigh(a_matrix)
 
-            zp.append(p_matrix[self.mode_index, 0] ** 2 / cj / wsq[self.mode_index])
+            if any(wsq < 0):
+                print(f"Negative eigenvalue detected: {wsq[wsq < 0] = }")
+                print(f"{a_matrix}")
+
+            zp.append(
+                p_matrix[self.mode_index, 0] ** 2
+                / cj
+                / np.sqrt(abs(wsq[self.mode_index]))
+            )
 
         return np.asarray(zp)
+
+    def guess(self, data: np.ndarray, x: np.ndarray, **kws) -> Parameters:
+
+        self.set_param_hint("l1", value=self.l_med, min=self.l_min, max=self.l_max)
+        self.set_param_hint("l2", value=self.l_med, min=self.l_min, max=self.l_max)
+        self.set_param_hint(
+            "l1c", value=0.1 * self.l_med, min=self.l_min, max=self.l_max
+        )
+        self.set_param_hint(
+            "l2c", value=0.1 * self.l_med, min=self.l_min, max=self.l_max
+        )
+        self.set_param_hint("c1", value=self.c_med, min=self.c_min, max=self.c_max)
+        self.set_param_hint("c2", value=self.c_med, min=self.c_min, max=self.c_max)
+        self.set_param_hint("cj", value=self.c_med, min=self.c_min, max=self.c_max)
+
+        params = self.make_params()
+
+        return update_param_vals(params, self.prefix, **kws)
