@@ -226,9 +226,9 @@ class TwoCavityOneCouplerModel(Model):
     l_min = 0.1
     l_max = 2000
     l_med = 1
-    c_min = 0.1
-    c_max = 2000
-    c_med = 1
+    c_min = 0.1e-3
+    c_max = 2000e-3
+    c_med = 1e-3
 
     default_unit_scale = 1e9
 
