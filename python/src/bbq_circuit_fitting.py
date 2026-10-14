@@ -5,8 +5,7 @@ Perform transformations between a black box circuit and another circuit model
 import matplotlib.pyplot as plt
 import numpy as np
 from file_io import get_delimiter_from_file
-from lmfit.model import Model
-from lmfit.models import update_param_vals
+from lmfit.minimizer import Minimizer
 from lmfit.parameter import Parameters
 
 
@@ -221,7 +220,7 @@ class InductivelyCoupledSQUIDCircuit:
         """Compute the system matrix A = U Omega^2 U^t."""
 
 
-class TwoCavityOneCouplerModel(Model):
+class TwoCavityOneCouplerModel(Minimizer):
     # Inductance and capacitance bounds
     l_min = 0.1
     l_max = 2000
@@ -233,25 +232,51 @@ class TwoCavityOneCouplerModel(Model):
     default_unit_scale = 1e9
 
     def __init__(
-        self, mode_index: int, *args, unit_scale: float | None = None, **kwargs
+        self,
+        data: np.ndarray,
+        x: np.ndarray,
+        unit_scale: float | None = None,
     ):
-        super().__init__(self._two_cavity_one_coupler_impedances, *args, **kwargs)
+        params = self._get_parameters()
+        super().__init__(
+            self._two_cavity_one_coupler_impedances_cost,
+            params=params,
+            fcn_args=(x,),
+            fcn_kws={
+                "data": data,
+            },
+        )
         self.unit_scale = (
             unit_scale if unit_scale is not None else self.default_unit_scale
         )
-        self.mode_index = mode_index
 
-    def _two_cavity_one_coupler_impedances(
+    def _get_parameters(self):
+        params = Parameters()
+        params.add("l1", value=0.1, min=self.l_min, max=self.l_max)
+        params.add("l2", value=0.3, min=self.l_min, max=self.l_max)
+        params.add("l1c", value=0.01, min=self.l_min, max=self.l_max)
+        params.add("l2c", value=0.04, min=self.l_min, max=self.l_max)
+        params.add("c1", value=300e-3, min=self.c_min, max=self.c_max)
+        params.add("c2", value=100e-3, min=self.c_min, max=self.c_max)
+        params.add("cj", value=2e-3, min=self.c_min, max=self.c_max)
+
+        return params
+
+    def _two_cavity_one_coupler_impedances_cost(
         self,
+        parameters: Parameters,
         x: np.ndarray,
-        l1: float,
-        l2: float,
-        l1c: float,
-        l2c: float,
-        c1: float,
-        c2: float,
-        cj: float,
+        data: np.ndarray,
     ) -> np.ndarray:
+
+        pars_values = parameters.valuesdict()
+        l1 = pars_values["l1"]
+        l2 = pars_values["l2"]
+        l1c = pars_values["l1c"]
+        l2c = pars_values["l2c"]
+        c1 = pars_values["c1"]
+        c2 = pars_values["c2"]
+        cj = pars_values["cj"]
 
         zp = []
         for lj in x:
@@ -276,28 +301,6 @@ class TwoCavityOneCouplerModel(Model):
                 print(f"Negative eigenvalue detected: {wsq[wsq < 0] = }")
                 print(f"{a_matrix}")
 
-            zp.append(
-                p_matrix[self.mode_index, 0] ** 2
-                / cj
-                / np.sqrt(abs(wsq[self.mode_index]))
-            )
+            zp.append(p_matrix[:, -1] ** 2 / cj / np.sqrt(np.abs(wsq)))
 
-        return np.asarray(zp)
-
-    def guess(self, data: np.ndarray, x: np.ndarray, **kws) -> Parameters:
-
-        self.set_param_hint("l1", value=self.l_med, min=self.l_min, max=self.l_max)
-        self.set_param_hint("l2", value=self.l_med, min=self.l_min, max=self.l_max)
-        self.set_param_hint(
-            "l1c", value=0.1 * self.l_med, min=self.l_min, max=self.l_max
-        )
-        self.set_param_hint(
-            "l2c", value=0.1 * self.l_med, min=self.l_min, max=self.l_max
-        )
-        self.set_param_hint("c1", value=self.c_med, min=self.c_min, max=self.c_max)
-        self.set_param_hint("c2", value=self.c_med, min=self.c_min, max=self.c_max)
-        self.set_param_hint("cj", value=self.c_med, min=self.c_min, max=self.c_max)
-
-        params = self.make_params()
-
-        return update_param_vals(params, self.prefix, **kws)
+        return np.sum((np.asarray(zp) - data) ** 2, axis=1)
