@@ -4,9 +4,10 @@ Perform transformations between a black box circuit and another circuit model
 
 import matplotlib.pyplot as plt
 import numpy as np
-from sc_foi.bbq.file_io import get_delimiter_from_file
 from lmfit.minimizer import Minimizer
 from lmfit.parameter import Parameters
+
+from sc_foi.bbq.file_io import get_delimiter_from_file
 
 
 # Abstract base classes, filled in later
@@ -60,7 +61,9 @@ class BlackBoxAdmittanceModel:
     def _read_admittance_file(self, filename: str) -> None:
         """Read the real and imaginary parts of the admittance data from a file."""
         delimiter = get_delimiter_from_file(filename)
-        data = np.genfromtxt(filename, delimiter=delimiter, names=True, autostrip=True)
+        data = np.genfromtxt(
+            filename, delimiter=delimiter, names=True, autostrip=True
+        )
 
         frequencies = data["frequency"]
         self.fscale = 1.0 if max(frequencies) > 1e9 else 1e9
@@ -189,7 +192,12 @@ class InductivelyCoupledSQUIDCircuit:
     """
 
     def __init__(
-        self, lr: np.ndarray, cr: np.ndarray, lrq: np.ndarray, lq: np.ndarray, cq: float
+        self,
+        lr: np.ndarray,
+        cr: np.ndarray,
+        lrq: np.ndarray,
+        lq: np.ndarray,
+        cq: float,
     ) -> None:
 
         self.lr = lr
@@ -203,7 +211,9 @@ class InductivelyCoupledSQUIDCircuit:
 
     def _get_inverse_l_matrix_lq(self, lq: float) -> np.ndarray:
         # Resonator diagonal terms
-        lr_inv = np.diag(np.concatenate((1 / self.lr + 1 / self.lrq), 0).flatten())
+        lr_inv = np.diag(
+            np.concatenate((1 / self.lr + 1 / self.lrq), 0).flatten()
+        )
 
         # Off diagonal terms
         lr_inv[-1, :-1] = -1 / self.lrq
@@ -229,13 +239,13 @@ class TwoCavityOneCouplerModel(Minimizer):
 
     default_unit_scale = 1e9
 
-    plot_scales = {"x": "log", "y": "log"}
-
     def __init__(
         self,
         data: np.ndarray,
         x: np.ndarray,
         unit_scale: float | None = None,
+        wp_data: np.ndarray | None = None,
+        plot_scales: dict | None = None,
     ):
         params = self._get_parameters()
         super().__init__(
@@ -251,6 +261,10 @@ class TwoCavityOneCouplerModel(Minimizer):
         )
         self.data = data
         self.x = x
+        self.wp_data = wp_data
+        self.plot_scales = (
+            plot_scales if plot_scales is not None else {"x": "log", "y": "log"}
+        )
 
     def _get_parameters(self):
         params = Parameters()
@@ -305,11 +319,16 @@ class TwoCavityOneCouplerModel(Minimizer):
 
             zp.append(p_matrix[:, -1] ** 2 / cj / np.sqrt(np.abs(wsq)))
 
-        return np.sum((np.asarray(zp) - data) ** 2, axis=1)
+        return np.sum((np.asarray(zp) - data), axis=1)
 
-    def _get_zp_from_parameters(self, x: np.ndarray, l1: float, l2: float, l1c: float, l2c: float, c1: float, c2: float, cj: float, ) -> np.ndarray:
+    def _get_zp_wp_from_parameters(
+        self, parameters: Parameters
+    ) -> tuple[np.ndarray, np.ndarray]:
+
+        l1, l2, l1c, l2c, c1, c2, cj = self._parameters_to_floats(parameters)
 
         zp = []
+        wp = []
         for lj in self.x:
             a_matrix = np.array(
                 [
@@ -333,10 +352,13 @@ class TwoCavityOneCouplerModel(Minimizer):
                 print(f"{a_matrix}")
 
             zp.append(p_matrix[:, -1] ** 2 / cj / np.sqrt(np.abs(wsq)))
+            wp.append(np.sqrt(np.abs(wsq)))
 
-        return np.asarray(zp)
+        return np.asarray(zp), np.asarray(wp)
 
-    def _parameters_to_floats(self, parameters: Parameters) -> tuple[float, float, float, float, float, float]:
+    def _parameters_to_floats(
+        self, parameters: Parameters
+    ) -> tuple:
         pars_values = parameters.valuesdict()
         l1 = pars_values["l1"]
         l2 = pars_values["l2"]
@@ -353,33 +375,55 @@ class TwoCavityOneCouplerModel(Minimizer):
         params: Parameters,
     ) -> None:
 
-        _, ax = plt.subplots(1, 1, tight_layout=True)
+        _, ax = plt.subplots(2, 1, figsize=(8, 10), tight_layout=True)
 
         print(f"{params = }")
 
         _, n_modes = self.data.shape
-        l1, l2, l1c, l2c, c1, c2, cj = self._parameters_to_floats(parameters=params)
-        fit_data = self._get_zp_from_parameters(self.x, l1, l2, l1c, l2c, c1, c2, cj)
+        zp, wp = self._get_zp_wp_from_parameters(parameters=params)
 
         for p in range(n_modes):
-            ax.plot(
+            ax[0].plot(
                 self.x,
                 self.data[:, p],
                 marker="o",
                 ls="",
-                label=rf"$Z_{{p, {{\rm data}}}}$",
+                label=r"$Z_{p, {\rm data}}$",
                 color=f"C{p}",
             )
-            ax.plot(
+            ax[0].plot(
                 self.x,
-                fit_data[:, p],
-                label=rf"$Z_{{p, {{\rm fit}}}}$",
+                zp[:, p],
+                label=r"$Z_{p, {\rm fit}}$",
                 color=f"C{p}",
             )
 
-        ax.set_xlabel("Junction inductances [H]")
-        ax.set_ylabel(r"Mode impedance [$\Omega$]")
-        ax.set_xscale(self.plot_scales["x"])
-        ax.set_yscale(self.plot_scales["y"])
-        ax.legend()
-        ax.set_title("Mode impedance circuit fit")
+            ax[1].plot(
+                self.x,
+                wp[:, p] / (2 * np.pi),
+                label=r"$\omega_{p, {\rm fit}}\, /\, 2\pi$",
+                color=f"C{p}",
+            )
+            if self.wp_data is not None:
+                ax[1].plot(
+                    self.x,
+                    self.wp_data[:, p] / (2 * np.pi),
+                    marker="o",
+                    ls="",
+                    label=r"$\omega_{p, {\rm data}}\, /\, 2\pi$",
+                    color=f"C{p}",
+                )
+
+        ax[0].set_xlabel("Junction inductances [nH]")
+        ax[0].set_ylabel(r"Mode impedance [$\Omega$]")
+        ax[0].set_xscale(self.plot_scales["x"])
+        ax[0].set_yscale(self.plot_scales["y"])
+        ax[0].legend(loc="center left", bbox_to_anchor=(1, 0.5))
+        ax[0].set_title("Mode impedance circuit fit")
+
+        ax[1].set_xlabel("Junction inductances [nH]")
+        ax[1].set_ylabel("Mode frequency [GHz]")
+        ax[1].set_xscale(self.plot_scales["x"])
+        ax[1].set_yscale(self.plot_scales["y"])
+        ax[1].legend(loc="center left", bbox_to_anchor=(1, 0.5))
+        ax[1].set_title("Mode frequency circuit fit")
