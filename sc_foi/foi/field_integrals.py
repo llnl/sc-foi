@@ -14,7 +14,7 @@ import scipy.integrate
 import scipy.interpolate
 import scipy.optimize
 
-import prof_tools as pt
+import sc_foi.foi.prof_tools as pt
 
 
 class EMFieldIntegrals:

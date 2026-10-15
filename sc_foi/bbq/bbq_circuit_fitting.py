@@ -4,7 +4,7 @@ Perform transformations between a black box circuit and another circuit model
 
 import matplotlib.pyplot as plt
 import numpy as np
-from file_io import get_delimiter_from_file
+from sc_foi.bbq.file_io import get_delimiter_from_file
 from lmfit.minimizer import Minimizer
 from lmfit.parameter import Parameters
 
