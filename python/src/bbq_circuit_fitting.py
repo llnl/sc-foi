@@ -91,9 +91,7 @@ class BlackBoxAdmittanceModel:
             # Derivative of admittances at mode frequencies
             # gives the mode capacitances, inductances, impedances
             y_grad = np.gradient(y, np.median(np.diff(w)))
-            cp = 0.5 * np.abs(y_grad.imag[zero_crossing_idxs])
-            lp = 1.0 / (wp_j**2 * cp)
-            zp.append(np.sqrt(lp / cp))
+            zp.append(2.0 / wp_j / np.abs(y_grad.imag[zero_crossing_idxs]))
 
         self.mode_impedances = np.asarray(zp)
         self.mode_frequencies = np.asarray(wp)
@@ -231,6 +229,8 @@ class TwoCavityOneCouplerModel(Minimizer):
 
     default_unit_scale = 1e9
 
+    plot_scales = {"x": "log", "y": "log"}
+
     def __init__(
         self,
         data: np.ndarray,
@@ -249,6 +249,8 @@ class TwoCavityOneCouplerModel(Minimizer):
         self.unit_scale = (
             unit_scale if unit_scale is not None else self.default_unit_scale
         )
+        self.data = data
+        self.x = x
 
     def _get_parameters(self):
         params = Parameters()
@@ -304,3 +306,80 @@ class TwoCavityOneCouplerModel(Minimizer):
             zp.append(p_matrix[:, -1] ** 2 / cj / np.sqrt(np.abs(wsq)))
 
         return np.sum((np.asarray(zp) - data) ** 2, axis=1)
+
+    def _get_zp_from_parameters(self, x: np.ndarray, l1: float, l2: float, l1c: float, l2c: float, c1: float, c2: float, cj: float, ) -> np.ndarray:
+
+        zp = []
+        for lj in self.x:
+            a_matrix = np.array(
+                [
+                    [(1 / l1 + 1 / l1c) / c1, 0, -1 / l1c / np.sqrt(cj * c1)],
+                    [0, (1 / l2 + 1 / l2c) / c2, -1 / l2c / np.sqrt(cj * c2)],
+                    [
+                        -1 / l1c / np.sqrt(cj * c1),
+                        -1 / l2c / np.sqrt(cj * c2),
+                        (1 / l1 + 1 / l2 + 1 / lj) / cj,
+                    ],
+                ]
+            )
+
+            if not np.allclose(a_matrix, a_matrix.T):
+                raise ValueError(f"a_matrix: {a_matrix} is not symmetric.")
+
+            wsq, p_matrix = np.linalg.eigh(a_matrix)
+
+            if any(wsq < 0):
+                print(f"Negative eigenvalue detected: {wsq[wsq < 0] = }")
+                print(f"{a_matrix}")
+
+            zp.append(p_matrix[:, -1] ** 2 / cj / np.sqrt(np.abs(wsq)))
+
+        return np.asarray(zp)
+
+    def _parameters_to_floats(self, parameters: Parameters) -> tuple[float, float, float, float, float, float]:
+        pars_values = parameters.valuesdict()
+        l1 = pars_values["l1"]
+        l2 = pars_values["l2"]
+        l1c = pars_values["l1c"]
+        l2c = pars_values["l2c"]
+        c1 = pars_values["c1"]
+        c2 = pars_values["c2"]
+        cj = pars_values["cj"]
+
+        return l1, l2, l1c, l2c, c1, c2, cj
+
+    def plot_fit(
+        self,
+        params: Parameters,
+    ) -> None:
+
+        _, ax = plt.subplots(1, 1, tight_layout=True)
+
+        print(f"{params = }")
+
+        _, n_modes = self.data.shape
+        l1, l2, l1c, l2c, c1, c2, cj = self._parameters_to_floats(parameters=params)
+        fit_data = self._get_zp_from_parameters(self.x, l1, l2, l1c, l2c, c1, c2, cj)
+
+        for p in range(n_modes):
+            ax.plot(
+                self.x,
+                self.data[:, p],
+                marker="o",
+                ls="",
+                label=rf"$Z_{{p, {{\rm data}}}}$",
+                color=f"C{p}",
+            )
+            ax.plot(
+                self.x,
+                fit_data[:, p],
+                label=rf"$Z_{{p, {{\rm fit}}}}$",
+                color=f"C{p}",
+            )
+
+        ax.set_xlabel("Junction inductances [H]")
+        ax.set_ylabel(r"Mode impedance [$\Omega$]")
+        ax.set_xscale(self.plot_scales["x"])
+        ax.set_yscale(self.plot_scales["y"])
+        ax.legend()
+        ax.set_title("Mode impedance circuit fit")
