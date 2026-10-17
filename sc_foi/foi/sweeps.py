@@ -11,7 +11,6 @@ Summary:
 
 import matplotlib.pyplot as plt
 import numpy as np
-
 import post_proc_tools as ppt
 
 

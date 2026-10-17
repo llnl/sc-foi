@@ -93,8 +93,8 @@ class BlackBoxAdmittanceModel:
 
             # Derivative of admittances at mode frequencies
             # gives the mode capacitances, inductances, impedances
-            y_grad = np.gradient(y, np.median(np.diff(w)))
-            zp.append(2.0 / wp_j / np.abs(y_grad.imag[zero_crossing_idxs]))
+            y_grad = np.gradient(y, w)
+            zp.append(2.0 / wp_j / y_grad.imag[zero_crossing_idxs])
 
         self.mode_impedances = np.asarray(zp)
         self.mode_frequencies = np.asarray(wp)
@@ -231,10 +231,10 @@ class InductivelyCoupledSQUIDCircuit:
 class TwoCavityOneCouplerModel(Minimizer):
     # Inductance and capacitance bounds
     l_min = 0.1
-    l_max = 2000
+    l_max = np.inf  # 2000
     l_med = 1
     c_min = 0.1e-3
-    c_max = 2000e-3
+    c_max = np.inf  # 2000e-3
     c_med = 1e-3
 
     default_unit_scale = 1e9
@@ -251,7 +251,7 @@ class TwoCavityOneCouplerModel(Minimizer):
         super().__init__(
             self._two_cavity_one_coupler_impedances_cost,
             params=params,
-            fcn_args=(x,),
+            fcn_args=(np.concatenate([x] * min(data.shape)),),
             fcn_kws={
                 "data": data,
             },
@@ -295,7 +295,7 @@ class TwoCavityOneCouplerModel(Minimizer):
         cj = pars_values["cj"]
 
         zp = []
-        for lj in x:
+        for lj in np.unique(x):
             a_matrix = np.array(
                 [
                     [(1 / l1 + 1 / l1c) / c1, 0, -1 / l1c / np.sqrt(cj * c1)],
@@ -313,13 +313,9 @@ class TwoCavityOneCouplerModel(Minimizer):
 
             wsq, p_matrix = np.linalg.eigh(a_matrix)
 
-            if any(wsq < 0):
-                print(f"Negative eigenvalue detected: {wsq[wsq < 0] = }")
-                print(f"{a_matrix}")
-
             zp.append(p_matrix[:, -1] ** 2 / cj / np.sqrt(np.abs(wsq)))
 
-        return np.sum((np.asarray(zp) - data), axis=1)
+        return (np.asarray(zp).flatten() - data.flatten()) / x
 
     def _get_zp_wp_from_parameters(
         self, parameters: Parameters
@@ -329,7 +325,7 @@ class TwoCavityOneCouplerModel(Minimizer):
 
         zp = []
         wp = []
-        for lj in self.x:
+        for lj in np.unique(self.x):
             a_matrix = np.array(
                 [
                     [(1 / l1 + 1 / l1c) / c1, 0, -1 / l1c / np.sqrt(cj * c1)],
@@ -347,18 +343,12 @@ class TwoCavityOneCouplerModel(Minimizer):
 
             wsq, p_matrix = np.linalg.eigh(a_matrix)
 
-            if any(wsq < 0):
-                print(f"Negative eigenvalue detected: {wsq[wsq < 0] = }")
-                print(f"{a_matrix}")
-
             zp.append(p_matrix[:, -1] ** 2 / cj / np.sqrt(np.abs(wsq)))
             wp.append(np.sqrt(np.abs(wsq)))
 
         return np.asarray(zp), np.asarray(wp)
 
-    def _parameters_to_floats(
-        self, parameters: Parameters
-    ) -> tuple:
+    def _parameters_to_floats(self, parameters: Parameters) -> tuple:
         pars_values = parameters.valuesdict()
         l1 = pars_values["l1"]
         l2 = pars_values["l2"]
@@ -424,6 +414,6 @@ class TwoCavityOneCouplerModel(Minimizer):
         ax[1].set_xlabel("Junction inductances [nH]")
         ax[1].set_ylabel("Mode frequency [GHz]")
         ax[1].set_xscale(self.plot_scales["x"])
-        ax[1].set_yscale(self.plot_scales["y"])
+        ax[1].set_yscale("linear")
         ax[1].legend(loc="center left", bbox_to_anchor=(1, 0.5))
         ax[1].set_title("Mode frequency circuit fit")

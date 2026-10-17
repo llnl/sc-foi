@@ -6,7 +6,6 @@ resonance, harmonic, and subharmonic driving
 
 import numpy as np
 import scipy.special
-
 from post_proc_tools import MPLPlotWrapper
 
 
