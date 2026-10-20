@@ -22,6 +22,8 @@ class BlackBoxAdmittanceModel:
     mode_frequencies: np.ndarray
     mode_impedances: np.ndarray
 
+    max_plot_count = 25
+
     def __init__(
         self,
         admittance_filename: str,
@@ -81,8 +83,7 @@ class BlackBoxAdmittanceModel:
         y_hfss = self.hfss_admittances
 
         for lj in self.ljs:
-            yj = 1 / (1j * w * lj)
-            y = y_hfss + yj + (1j * w * self.cj)
+            y = y_hfss + 1 / (1j * w * lj) + (1j * w * self.cj)
 
             # Zero crossings from the those with positive derivative
             zero_crossing_idxs = np.where(np.diff(np.sign(y.imag)) > 0)[0][
@@ -94,7 +95,8 @@ class BlackBoxAdmittanceModel:
             # Derivative of admittances at mode frequencies
             # gives the mode capacitances, inductances, impedances
             y_grad = np.gradient(y, w)
-            zp.append(2.0 / wp_j / y_grad.imag[zero_crossing_idxs])
+            y_grad_wp_j = np.interp(wp_j, w, y_grad)
+            zp.append(2.0 / (wp_j * np.imag(y_grad_wp_j)))
 
         self.mode_impedances = np.asarray(zp)
         self.mode_frequencies = np.asarray(wp)
@@ -105,7 +107,7 @@ class BlackBoxAdmittanceModel:
 
         ax.plot(
             self.hfss_frequencies / self.fscale,
-            self.hfss_admittances.imag,
+            np.imag(self.hfss_admittances),
             color="tab:blue",
             marker=".",
             ls="",
@@ -116,6 +118,37 @@ class BlackBoxAdmittanceModel:
         ax.set_title("Open circuit admittance")
 
         ax.set_ylim(-1e-1, 1e-1)
+
+    def plot_circuit_admittances_vs_ljs(self):
+
+        decimation_factor = self.ljs.size // self.max_plot_count
+
+        for lj_idx, lj in enumerate(self.ljs[0::decimation_factor]):
+            w = 2 * np.pi * self.hfss_frequencies
+            yj = 1 / (1j * w * lj) + (1j * w * self.cj)
+            _, ax = plt.subplots(1, 1, tight_layout=True)
+            ax.plot(
+                self.hfss_frequencies / self.fscale,
+                np.imag(self.hfss_admittances + yj),
+                ".-",
+                color="tab:blue",
+            )
+            ax.plot(
+                self.mode_frequencies[0::decimation_factor][lj_idx]
+                / (2 * np.pi * self.fscale),
+                np.zeros(self.n_modes),
+                color="tab:red",
+                marker="o",
+                ms=10,
+                mfc="none",
+                ls="",
+            )
+            ax.axhline(y=0, color="k", alpha=0.5)
+            ax.set_xlabel("Sweep frequencies [GHz]")
+            ax.set_ylabel(r"${\rm Im}Y(\omega)$ [S]")
+            ax.set_title(f"Admittance at {lj / 1e-9:.3g} nH")
+
+            ax.set_ylim(-1e-1, 1e-1)
 
     def plot_mode_frequencies_vs_lj(
         self,
@@ -231,10 +264,10 @@ class InductivelyCoupledSQUIDCircuit:
 class TwoCavityOneCouplerModel(Minimizer):
     # Inductance and capacitance bounds
     l_min = 0.1
-    l_max = np.inf  # 2000
+    l_max = 200000
     l_med = 1
     c_min = 0.1e-3
-    c_max = np.inf  # 2000e-3
+    c_max = 200000
     c_med = 1e-3
 
     default_unit_scale = 1e9
