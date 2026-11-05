@@ -1,0 +1,34 @@
+[project]
+name = "sc-foi"
+version = "0.1.0"
+description = "Superconducting field overlap integral method"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "ipykernel>=7.4.0",
+    "ipython>=9.17.1",
+    "lmfit>=1.3.4",
+    "matplotlib>=3.11.2",
+    "numpy>=2.5.4",
+    "pandas>=3.0.6",
+    "pip>=26.2.1",
+    "pyepr-quantum",
+    "ruff>=0.17.1",
+    "scipy>=1.18.1",
+    "ty>=0.0.88",
+]
+classifiers = ["Private :: Do Not Upload"]
+
+[build-system]
+requires = ["setuptools>=64", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["sc_foi"]
+
+[tool.ruff]
+line-length = 80
+
+[tool.uv.sources]
+pyepr-quantum = { git = "https://github.com/zlatko-minev/pyEPR.git" }
+

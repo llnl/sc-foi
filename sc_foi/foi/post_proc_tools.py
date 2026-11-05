@@ -1,24 +1,20 @@
-# -*- coding: utf-8 -*-
 """
 Post processing tools for plotting, viewing states, etc.
 """
 
-import numpy as np
-import matplotlib.pyplot as plt
-import matplotlib as mpl
-from matplotlib import cm
-from matplotlib.colors import BoundaryNorm
-from matplotlib.ticker import MaxNLocator
-from scipy.optimize import curve_fit
-import scipy.sparse as scsp
 import datetime
-import pickle as pk
 import subprocess
+
 import h5py as hdf
-import scipy.linalg
+import matplotlib as mpl
+import matplotlib.pyplot as plt
+import numpy as np
+import scipy.sparse as scsp
+from matplotlib import cm
+from matplotlib.ticker import MaxNLocator
 
 
-class MPLPlotWrapper(object):
+class MPLPlotWrapper:
     """
     Class that wraps the matplotlib.pyplot with simpler, built-in functions
     for standard plotting and formatting commands
@@ -698,13 +694,13 @@ def gnuplot_dumb_traces(xlist, ylist,
 
     # Set the x and y ranges if not empty
     if xlim != []:
-        print('Setting xlim to {} ...'.format(xlim))
+        print(f'Setting xlim to {xlim} ...')
         xrange_str = 'set xrange [%g:%g]\n' % (xlim[0], xlim[1])
         gnuplot.stdin.write(str.encode(xrange_str))
 
     # Set the x and y ranges if not empty
     if ylim != []:
-        print('Setting ylim to {} ...'.format(ylim))
+        print(f'Setting ylim to {ylim} ...')
         yrange_str = 'set yrange [%g:%g]\n' % (ylim[0], ylim[1])
         gnuplot.stdin.write(str.encode(yrange_str))
 
@@ -920,8 +916,8 @@ def plot_post_qeng(fprefix, tscale='us'):
     fid_mbl = hdf.File('data/mbl_%s.hdf5' % fprefix, 'r')
     fid_eth = hdf.File('data/eth_%s.hdf5' % fprefix, 'r')
 
-    print('fid_mbl.keys(): {}'.format(fid_mbl.keys()))
-    print('fid_eth.keys(): {}'.format(fid_eth.keys()))
+    print(f'fid_mbl.keys(): {fid_mbl.keys()}')
+    print(f'fid_eth.keys(): {fid_eth.keys()}')
 
     # Get the fidelities, residual energies
     tpts_exp  = fid_eth['tpts_exp'][()]
@@ -1120,7 +1116,7 @@ def post_plot_fid_Eres_from_hdf(fname, keys, Ns, use_twinx=True, use_std=False,
 
         # Plot the result of the key
         ax1.plot(tpts, fid[keys[1]][()], color=color1)
-        ax1.set_xlabel('Time [$\mu$s]', fontsize=fsize)
+        ax1.set_xlabel(r'Time [$\mu$s]', fontsize=fsize)
         ax1.set_ylabel(ystr1, fontsize=fsize, color=color1)
 
         # Rotate the x-axis labels
@@ -1133,7 +1129,7 @@ def post_plot_fid_Eres_from_hdf(fname, keys, Ns, use_twinx=True, use_std=False,
         ax2 = ax1.twinx()
         set_axes_fonts(ax2, fsize)
         ax2.plot(tpts, fid[keys[0]][()], color=color2)
-        ax2.set_xlabel('Time [$\mu$s]', fontsize=fsize)
+        ax2.set_xlabel(r'Time [$\mu$s]', fontsize=fsize)
         ax2.set_ylabel(ystr2, fontsize=fsize, color=color2)
         ax2.tick_params(axis='y', labelcolor=color2)
         ax2.set_ylim([-0.1, 1.1])
@@ -1197,7 +1193,7 @@ def post_plot_fid_Eres_from_hdf(fname, keys, Ns, use_twinx=True, use_std=False,
             else:
                 fid_data = fid[k][()]
             ax.plot(tpts, fid_data, '.-')
-            ax.set_xlabel('Time [$\mu$s]', fontsize=fsize)
+            ax.set_xlabel(r'Time [$\mu$s]', fontsize=fsize)
             ax.set_ylabel(ystr, fontsize=fsize)
             ax.set_xscale(axescales[0])
             ax.set_yscale(axescales[1])
@@ -1285,7 +1281,7 @@ def post_plot_fid_Eres_real_from_hdf(fname, keys, use_twinx=True,
         for d in ddict[k]:
             ax.plot(tpts, d, alpha=0.25, lw=1)
         ax.plot(tpts, fid[k][()], 'k--', lw=2)
-        ax.set_xlabel('Time [$\mu$s]', fontsize=fsize)
+        ax.set_xlabel(r'Time [$\mu$s]', fontsize=fsize)
         ax.set_ylabel(ystr, fontsize=fsize)
     
         # Save and close the figure

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Created on Sun. January 17, 2021
 
@@ -10,9 +9,10 @@ Summary:
 
 """
 
+import matplotlib.pyplot as plt
 import numpy as np
 import post_proc_tools as ppt
-import matplotlib.pyplot as plt
+
 
 def load_eigenmode_sweep_file_data(fname : str, Nmodes : int = 2):
     """

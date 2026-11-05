@@ -1,11 +1,11 @@
-# -*- coding: utf-8 -*-
 """
 Profiling tools for locating bottlenecks in code
 """
 
 import time
 
-class TimeTracker(object):
+
+class TimeTracker:
     """
     Time tracking for funciton and other events
     """
@@ -89,8 +89,8 @@ __version__ = '$Revision: 3 $'
 ################################################################################
 
 import inspect
-import sys
 import multiprocessing
+import sys
 
 ################################################################################
 
@@ -161,9 +161,7 @@ class _Timeout:
     @property
     def ready(self):
         """Read-only property indicating status of "value" property."""
-        if self.__queue.full():
-            return True
-        elif not self.__queue.empty():
+        if self.__queue.full() or not self.__queue.empty():
             return True
         elif self.__timeout < time.time():
             self.cancel()
