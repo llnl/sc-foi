@@ -78,6 +78,8 @@ class BlackBoxAdmittanceModel:
         function of the junction inductances."""
         zp = []
         wp = []
+        lp = []
+        cp = []
 
         w = 2 * np.pi * self.hfss_frequencies
         y_hfss = self.hfss_admittances
@@ -96,9 +98,13 @@ class BlackBoxAdmittanceModel:
             # gives the mode capacitances, inductances, impedances
             y_grad = np.gradient(y, w)
             y_grad_wp_j = np.interp(wp_j, w, y_grad)
+            cp.append(0.5 * np.imag(y_grad_wp_j))
+            lp.append(2.0 / (wp_j**2 * np.imag(y_grad_wp_j)))
             zp.append(2.0 / (wp_j * np.imag(y_grad_wp_j)))
 
         self.mode_impedances = np.asarray(zp)
+        self.mode_capacitances = np.asarray(cp)
+        self.mode_inductances = np.asarray(lp)
         self.mode_frequencies = np.asarray(wp)
 
     def plot_open_circuit_admittance(self):
@@ -191,6 +197,50 @@ class BlackBoxAdmittanceModel:
         ax.set_yscale(self.plot_scales["y"])
         ax.legend()
         ax.set_title("Mode impedances from black box")
+
+    def plot_mode_capacitances_vs_lj(
+        self,
+    ) -> None:
+
+        _, ax = plt.subplots(1, 1, tight_layout=True)
+
+        for p in range(self.n_modes):
+            ax.plot(
+                self.ljs,
+                self.mode_capacitances[:, p],
+                marker="o",
+                ls="",
+                label=rf"$Z_{p}$",
+            )
+
+        ax.set_xlabel("Junction inductances [H]")
+        ax.set_ylabel("Mode capacitance [F]")
+        ax.set_xscale(self.plot_scales["x"])
+        ax.set_yscale(self.plot_scales["y"])
+        ax.legend()
+        ax.set_title("Mode inductances from black box")
+
+    def plot_mode_inductances_vs_lj(
+        self,
+    ) -> None:
+
+        _, ax = plt.subplots(1, 1, tight_layout=True)
+
+        for p in range(self.n_modes):
+            ax.plot(
+                self.ljs,
+                self.mode_inductances[:, p],
+                marker="o",
+                ls="",
+                label=rf"$Z_{p}$",
+            )
+
+        ax.set_xlabel("Junction inductances [H]")
+        ax.set_ylabel("Mode inductance [H]")
+        ax.set_xscale(self.plot_scales["x"])
+        ax.set_yscale(self.plot_scales["y"])
+        ax.legend()
+        ax.set_title("Mode inductances from black box")
 
     def show_plots(self) -> None:
         self.plot_mode_impedances_vs_lj()
@@ -399,9 +449,6 @@ class TwoCavityOneCouplerModel(Minimizer):
     ) -> None:
 
         _, ax = plt.subplots(2, 1, figsize=(8, 10), tight_layout=True)
-
-        print(f"{params = }")
-
         _, n_modes = self.data.shape
         zp, wp = self._get_zp_wp_from_parameters(parameters=params)
 
