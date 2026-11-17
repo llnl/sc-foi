@@ -22,7 +22,9 @@ class BlackBoxAdmittanceModel:
     mode_frequencies: np.ndarray
     mode_impedances: np.ndarray
 
-    max_plot_count = 25
+    max_plot_count = 20
+
+    default_yim_range = (-5e-2, 5e-2)
 
     def __init__(
         self,
@@ -31,6 +33,7 @@ class BlackBoxAdmittanceModel:
         n_modes: int,
         cj: float | None = None,
         plot_scales: dict[str, str] | None = None,
+        yim_plot_range: tuple[float, float] | None = None,
     ) -> None:
         """
         Convert HFSS admittances to mode parameters: capacitances, inductances,
@@ -50,8 +53,15 @@ class BlackBoxAdmittanceModel:
 
         plot_scales: dict
             dictionary of plot scales for x, y axes
+        yim_plot_range: tuple[float, float] | None (default: None)
+            Im[Y] plot ylim range
         """
 
+        self.yim_plot_range = (
+            yim_plot_range
+            if yim_plot_range is not None
+            else self.default_yim_range
+        )
         self.ljs = ljs
         self.cj = cj if cj is not None else 0.0
         self.n_modes = n_modes
@@ -123,11 +133,15 @@ class BlackBoxAdmittanceModel:
         ax.set_ylabel(r"${\rm Im}Y(\omega)$ [S]")
         ax.set_title("Open circuit admittance")
 
-        ax.set_ylim(-1e-1, 1e-1)
+        ax.set_ylim(self.yim_plot_range)
 
     def plot_circuit_admittances_vs_ljs(self):
 
-        decimation_factor = self.ljs.size // self.max_plot_count
+        decimation_factor = (
+            self.ljs.size // self.max_plot_count
+            if self.ljs.size > self.max_plot_count
+            else 1
+        )
 
         for lj_idx, lj in enumerate(self.ljs[0::decimation_factor]):
             w = 2 * np.pi * self.hfss_frequencies
@@ -154,7 +168,7 @@ class BlackBoxAdmittanceModel:
             ax.set_ylabel(r"${\rm Im}Y(\omega)$ [S]")
             ax.set_title(f"Admittance at {lj / 1e-9:.3g} nH")
 
-            ax.set_ylim(-1e-1, 1e-1)
+            ax.set_ylim(self.yim_plot_range)
 
     def plot_mode_frequencies_vs_lj(
         self,
