@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Compute the weights for the terms in the Jacobi-Anger expansion
 to determine the expected strength of each term activated by
@@ -6,9 +5,9 @@ resonance, harmonic, and subharmonic driving
 """
 
 import numpy as np
-import matplotlib.pyplot as plt
 import scipy.special
 from post_proc_tools import MPLPlotWrapper
+
 
 class ParametricRates:
     """
@@ -48,8 +47,8 @@ class ParametricRates:
         if self.debug:
             print('\n------------------------')
             print(f'{n}-th photon process: ')
-        for k in range(0, n // 2 + 2):
-            for kp in range(0, n // 2 + 2):
+        for k in range(n // 2 + 2):
+            for kp in range(n // 2 + 2):
                 if k + kp == n:
                     if self.debug:
                         print(f'Adding term J_{k} J_{kp} ...')
