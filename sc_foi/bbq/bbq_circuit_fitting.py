@@ -4,15 +4,11 @@ Perform transformations between a black box circuit and another circuit model
 
 import matplotlib.pyplot as plt
 import numpy as np
+import scipy
 from lmfit.minimizer import Minimizer
 from lmfit.parameter import Parameters
 
 from sc_foi.bbq.file_io import get_delimiter_from_file
-
-
-# Abstract base classes, filled in later
-class BlackBoxCircuit:
-    pass
 
 
 class BlackBoxAdmittanceModel:
@@ -267,7 +263,12 @@ class BlackBoxAdmittanceModel:
         self.show_plots()
 
 
-class InductivelyCoupledSQUIDCircuit:
+# Abstract base classes, filled in later
+class Circuit:
+    pass
+
+
+class GroundedCouplerTwoCavityCircuit:
     """
     Couple a single SQUID shunted to ground to multiple resonators through
     inductive couplings.
@@ -323,6 +324,126 @@ class InductivelyCoupledSQUIDCircuit:
 
     def _get_a_matrix(self):
         """Compute the system matrix A = U Omega^2 U^t."""
+
+
+class FloatingCouplerTwoCavityCircuit:
+    """
+    Couple a single floating SQUID connected to two resonators through
+    galvanic (short) couplings
+
+    Parameters:
+    ----------
+
+    lr: np.ndarray
+        resonator inductances [nH]
+    cr: np.ndarray
+        resonator capacitances [nF]
+    lj: np.narray
+        SQUID (juntion) inductances [nH]
+    cj: float
+        SQUID (junction) capacitance [nF]
+
+    """
+
+    n_modes: int = 2
+
+    def __init__(
+        self,
+        lr: np.ndarray,
+        cr: np.ndarray,
+        lj: np.ndarray,
+        cj: float,
+        xy_scales: dict[str, str] | None = None,
+    ) -> None:
+
+        self.lr = lr
+        self.cr = cr
+        self.lj = lj
+        self.cj = cj
+        self.xy_scales = (
+            xy_scales if xy_scales is not None else {"x": "log", "y": "linear"}
+        )
+
+    def _get_c_matrix(self) -> np.ndarray:
+        c1, c2 = self.cr
+        cj = self.cj
+        return np.array([[c1 + cj, -cj], [-cj, c2 + cj]])
+
+    def _get_inverse_l_matrix_vs_lj(self, lj: float) -> np.ndarray:
+        l1, l2 = self.lr
+        return np.array(
+            [[1 / l1 + 1 / lj, -1 / lj], [-1 / lj, 1 / l2 + 1 / lj]]
+        )
+
+    def _get_bare_frequencies(self) -> tuple[float, float]:
+        c1, c2 = self.cr
+        l1, l2 = self.lr
+        return 1.0 / np.sqrt(l1 * c1), 1.0 / np.sqrt(l2 * c2)
+
+    def get_eigensystem_vs_lj(self) -> tuple[np.ndarray, np.ndarray]:
+        evals = []
+        evecs = []
+        c_matrix = self._get_c_matrix()
+        for lj in self.lj:
+            l_inv = self._get_inverse_l_matrix_vs_lj(lj)
+            _evals, _evecs = scipy.linalg.eigh(l_inv, b=c_matrix)
+            evals.append(_evals)
+            evecs.append(_evecs)
+
+        return np.asarray(evals), np.asarray(evecs)
+
+    def plot_eigenvalues_vs_lj(self, evals: np.ndarray) -> None:
+
+        _, ax = plt.subplots(2, 1, figsize=(8, 6), tight_layout=True)
+
+        for m in range(self.n_modes):
+            ax[0].plot(
+                self.lj, np.sqrt(evals[:, m]) / 2 / np.pi, label=f"Mode-{m}"
+            )
+
+        ax[0].set_xlabel("Junction inductance [nH]")
+        ax[0].set_ylabel("Mode frequency [GHz]")
+        ax[0].set_xscale(self.xy_scales["x"])
+        ax[0].set_yscale(self.xy_scales["y"])
+
+        w1, w2 = self._get_bare_frequencies()
+        ax[0].axhline(
+            y=w1 / 2 / np.pi,
+            color="k",
+            ls="--",
+            label=r"$\omega_{1, \rm bare}\,/\,2\pi$",
+        )
+        ax[0].axhline(
+            y=w2 / 2 / np.pi,
+            color="k",
+            ls=":",
+            label=r"$\omega_{2, \rm bare}\,/\,2\pi$",
+        )
+
+        ax[0].set_ylim(0, 1.5 * max(w1, w2) / 2 / np.pi)
+        ax[0].legend(loc="center left", bbox_to_anchor=(1, 0.5))
+
+        delta_01 = np.sqrt(evals[:, 1]) - np.sqrt(evals[:, 0])
+        delta_01_min_idx = np.argmin(delta_01)
+        ax[1].plot(self.lj, 1e3 * delta_01 / 2 / np.pi)
+        ax[1].plot(
+            self.lj[delta_01_min_idx],
+            1e3 * delta_01[delta_01_min_idx] / 2 / np.pi,
+            label=rf"Min difference: {1e3 * delta_01[delta_01_min_idx] / 2 / np.pi:.0f} MHz",
+            marker="*",
+            ms=10,
+            ls="",
+        )
+        ax[1].set_xlabel("Junction inductance [nH]")
+        ax[1].set_ylabel("Mode 01 difference [MHz]")
+        ax[1].set_xscale(self.xy_scales["x"])
+        ax[1].set_yscale("log")
+        ax[1].legend(loc="center left", bbox_to_anchor=(1, 0.5))
+
+    def run(self) -> None:
+
+        evals, _ = self.get_eigensystem_vs_lj()
+        self.plot_eigenvalues_vs_lj(evals)
 
 
 class TwoCavityOneCouplerModel(Minimizer):
